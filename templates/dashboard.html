@@ -8,10 +8,10 @@
     <input type="month" name="month" class="form-control" value="{{ month or '' }}">
   </div>
   <div class="col-auto">
-    <input type="date" name="start" class="form-control" placeholder="Desde (opcional)">
+    <input type="date" name="start" class="form-control" placeholder="Desde (opcional)" value="{{ start_value }}">
   </div>
   <div class="col-auto">
-    <input type="date" name="end" class="form-control" placeholder="Hasta (opcional)">
+    <input type="date" name="end" class="form-control" placeholder="Hasta (opcional)" value="{{ end_value }}">
   </div>
   <div class="col-auto">
     <button class="btn btn-primary">Ir</button>
@@ -23,9 +23,9 @@
     <div class="card">
       <div class="card-body">
         <h5>Personal</h5>
-        <p class="mb-1">Ingresos: <strong>${{ '%.2f'|format(personal.ing) }}</strong></p>
-        <p class="mb-1">Gastos: <strong>${{ '%.2f'|format(personal.gas) }}</strong></p>
-        <p class="mb-1">Balance: <strong>${{ '%.2f'|format(personal.ing - personal.gas) }}</strong></p>
+        <p class="mb-1">Ingresos: <strong>{{ personal.ing|peso }}</strong></p>
+        <p class="mb-1">Gastos: <strong>{{ personal.gas|peso }}</strong></p>
+        <p class="mb-1">Balance: <strong>{{ (personal.ing - personal.gas)|peso }}</strong></p>
       </div>
     </div>
   </div>
@@ -33,47 +33,80 @@
     <div class="card">
       <div class="card-body">
         <h5>Negocio</h5>
-        <p class="mb-1">Ingresos: <strong>${{ '%.2f'|format(negocio.ing) }}</strong></p>
-        <p class="mb-1">Gastos: <strong>${{ '%.2f'|format(negocio.gas) }}</strong></p>
-        <p class="mb-1">Balance: <strong>${{ '%.2f'|format(negocio.ing - negocio.gas) }}</strong></p>
+        <p class="mb-1">Ingresos: <strong>{{ negocio.ing|peso }}</strong></p>
+        <p class="mb-1">Gastos: <strong>{{ negocio.gas|peso }}</strong></p>
+        <p class="mb-1">Balance: <strong>{{ (negocio.ing - negocio.gas)|peso }}</strong></p>
       </div>
     </div>
   </div>
 </div>
 
 <div class="row g-3 mt-1">
-  <div class="col-md-6">
-    <div class="card">
-      <div class="card-header">Gasto por categoría (Personal)</div>
+  <div class="col-lg-4 col-md-6">
+    <div class="card h-100">
+      <div class="card-header">Gastos por categoría (Personal)</div>
       <div class="card-body">
-        {% if cat_personal %}
-          <ul class="mb-0">
-          {% for name, total in cat_personal %}
-            <li>{{ name }} — ${{ '%.2f'|format(total or 0) }}</li>
-          {% endfor %}
-          </ul>
+        {% if personal_expense_labels %}
+          <canvas id="personalExpenseChart"></canvas>
+          <script>
+            const personalExpenseLabels = {{ personal_expense_labels|tojson }};
+            const personalExpenseData = {{ personal_expense_values|tojson }};
+            new Chart(document.getElementById('personalExpenseChart'), {
+              type: 'bar',
+              data: {labels: personalExpenseLabels, datasets:[
+                {label:'Gastos', data: personalExpenseData, backgroundColor:'rgba(220,53,69,0.6)'}
+              ]},
+              options: {plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}}}
+            });
+          </script>
         {% else %}
           <em>Sin datos</em>
         {% endif %}
       </div>
     </div>
   </div>
-  <div class="col-md-6">
-    <div class="card">
+  <div class="col-lg-4 col-md-6">
+    <div class="card h-100">
+      <div class="card-header">Ingresos / Gastos por categoría (Personal)</div>
+      <div class="card-body">
+        {% if personal_mix_labels %}
+          <canvas id="personalMixChart"></canvas>
+          <script>
+            const personalMixLabels = {{ personal_mix_labels|tojson }};
+            const personalMixIn = {{ personal_mix_in|tojson }};
+            const personalMixOut = {{ personal_mix_out|tojson }};
+            new Chart(document.getElementById('personalMixChart'), {
+              type: 'bar',
+              data: {labels: personalMixLabels, datasets:[
+                {label:'Ingresos', data: personalMixIn, backgroundColor:'rgba(13,110,253,0.6)'},
+                {label:'Gastos', data: personalMixOut, backgroundColor:'rgba(220,53,69,0.6)'}
+              ]},
+              options: {scales:{y:{beginAtZero:true}}}
+            });
+          </script>
+        {% else %}
+          <em>Sin datos</em>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4 col-md-6">
+    <div class="card h-100">
       <div class="card-header">Ingresos / Gastos por categoría (Negocio)</div>
       <div class="card-body">
-        {% if cat_business %}
+        {% if business_labels %}
           <canvas id="bizChart"></canvas>
           <script>
-            const bizLabels = {{ cat_business|map(attribute=0)|list|tojson }};
-            const bizIn = {{ cat_business|map(attribute=1)|list|tojson }};
-            const bizOut = {{ cat_business|map(attribute=2)|list|tojson }};
+            const bizLabels = {{ business_labels|tojson }};
+            const bizIn = {{ business_in|tojson }};
+            const bizOut = {{ business_out|tojson }};
             new Chart(document.getElementById('bizChart'), {
               type: 'bar',
               data: {labels: bizLabels, datasets:[
-                {label:'Ingresos', data: bizIn},
-                {label:'Gastos', data: bizOut}
-              ]}
+                {label:'Ingresos', data: bizIn, backgroundColor:'rgba(25,135,84,0.6)'},
+                {label:'Gastos', data: bizOut, backgroundColor:'rgba(220,53,69,0.6)'}
+              ]},
+              options: {scales:{y:{beginAtZero:true}}}
             });
           </script>
         {% else %}
@@ -92,12 +125,25 @@
       const evoLabels = {{ series_labels|tojson }};
       const evoP = {{ series_personal|tojson }};
       const evoN = {{ series_negocio|tojson }};
+      const evoPProj = {{ series_personal_proj|tojson }};
+      const evoNProj = {{ series_negocio_proj|tojson }};
       new Chart(document.getElementById('evoChart'), {
         type: 'line',
         data: {labels: evoLabels, datasets:[
-          {label:'Personal', data:evoP},
-          {label:'Negocio', data:evoN}
-        ]}
+          {label:'Personal', data:evoP, borderColor:'#0d6efd', backgroundColor:'rgba(13,110,253,0.15)', spanGaps:true},
+          {label:'Negocio', data:evoN, borderColor:'#198754', backgroundColor:'rgba(25,135,84,0.15)', spanGaps:true},
+          {label:'Personal (Proyección)', data:evoPProj, borderColor:'#0d6efd', borderDash:[6,4], fill:false, spanGaps:true},
+          {label:'Negocio (Proyección)', data:evoNProj, borderColor:'#198754', borderDash:[6,4], fill:false, spanGaps:true}
+        ]},
+        options: {interaction:{mode:'index', intersect:false}, plugins:{tooltip:{callbacks:{
+          label: function(ctx){
+            const label = ctx.dataset.label || '';
+            const value = typeof ctx.parsed.y === 'number'
+              ? ctx.parsed.y.toLocaleString('es-AR', {style:'currency', currency:'ARS'})
+              : 'Sin dato';
+            return `${label}: ${value}`;
+          }
+        }}}, scales:{y:{beginAtZero:true}}}
       });
     </script>
   </div>
@@ -105,10 +151,16 @@
 
 <div class="row g-3 mt-2">
   <div class="col-md-6">
-    <div class="alert alert-info">Proyecciones del período — Ingresos estimados: <strong>${{ '%.2f'|format(proj_in) }}</strong></div>
+    <div class="alert alert-info">
+      Proyecciones del período — Ingresos estimados:
+      <strong>{{ proj_in|peso }}</strong>
+    </div>
   </div>
   <div class="col-md-6">
-    <div class="alert alert-warning">Proyecciones del período — Gastos estimados: <strong>${{ '%.2f'|format(proj_out) }}</strong></div>
+    <div class="alert alert-warning">
+      Proyecciones del período — Gastos estimados:
+      <strong>{{ proj_out|peso }}</strong>
+    </div>
   </div>
 </div>
 {% endblock %}

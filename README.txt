@@ -18,7 +18,7 @@ Cómo ejecutar (Windows):
 2) python -m venv .venv
 3) .\.venv\Scripts\Activate
 4) pip install -r requirements.txt
-5) python app.py
+5) python 1.py  (también podés usar `python app.py` si preferís)
 6) Navegá a http://127.0.0.1:8080
 
 Notas:
