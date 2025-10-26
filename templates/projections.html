@@ -1,0 +1,53 @@
+
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h3>Proyecciones</h3>
+  <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#newProj">Nueva</button>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-striped mb-0">
+      <thead><tr><th>Fecha</th><th>Scope</th><th>Tipo</th><th>Monto</th><th>Cuenta</th><th>Categoría</th><th>Descripción</th><th></th></tr></thead>
+      <tbody>
+      {% for p in items %}
+        <tr>
+          <td>{{ p.date }}</td>
+          <td>{{ p.scope }}</td>
+          <td>{{ 'Ingreso' if p.direction=='in' else 'Gasto' }}</td>
+          <td>${{ '%.2f'|format(p.amount) }}</td>
+          <td>{{ p.account.name if p.account else '-' }}</td>
+          <td>{{ p.category.name if p.category else '-' }}</td>
+          <td>{{ p.description }}</td>
+          <td>
+            <form action="{{ url_for('projections_delete', pid=p.id) }}" method="post">
+              <button class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Borrar proyección?')">Borrar</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal nueva -->
+<div class="modal fade" id="newProj" tabindex="-1">
+  <div class="modal-dialog">
+    <form class="modal-content" method="post">
+      <div class="modal-header"><h5 class="modal-title">Nueva proyección</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body row g-2">
+        <div class="col-6"><input type="date" name="date" class="form-control" required></div>
+        <div class="col-6"><select name="direction" class="form-select"><option value="out">Gasto</option><option value="in">Ingreso</option></select></div>
+        <div class="col-6"><input type="number" step="0.01" name="amount" class="form-control" required></div>
+        <div class="col-6"><input type="text" name="description" class="form-control" placeholder="Descripción"></div>
+        <div class="col-6"><input type="text" name="account" class="form-control" placeholder="Cuenta (Banco)"></div>
+        <div class="col-6"><input type="text" name="category" class="form-control" placeholder="Categoría (otros)"></div>
+        <div class="col-12"><select name="scope" class="form-select"><option value="personal">personal</option><option value="negocio">negocio</option></select></div>
+      </div>
+      <div class="modal-footer"><button class="btn btn-success">Crear</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}

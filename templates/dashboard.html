@@ -1,0 +1,114 @@
+
+{% extends "base.html" %}
+{% block content %}
+<h3>Dashboard — {{ title_suffix }}</h3>
+
+<form class="row g-2 mb-3" action="{{ url_for('dashboard') }}">
+  <div class="col-auto">
+    <input type="month" name="month" class="form-control" value="{{ month or '' }}">
+  </div>
+  <div class="col-auto">
+    <input type="date" name="start" class="form-control" placeholder="Desde (opcional)">
+  </div>
+  <div class="col-auto">
+    <input type="date" name="end" class="form-control" placeholder="Hasta (opcional)">
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-primary">Ir</button>
+  </div>
+</form>
+
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body">
+        <h5>Personal</h5>
+        <p class="mb-1">Ingresos: <strong>${{ '%.2f'|format(personal.ing) }}</strong></p>
+        <p class="mb-1">Gastos: <strong>${{ '%.2f'|format(personal.gas) }}</strong></p>
+        <p class="mb-1">Balance: <strong>${{ '%.2f'|format(personal.ing - personal.gas) }}</strong></p>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body">
+        <h5>Negocio</h5>
+        <p class="mb-1">Ingresos: <strong>${{ '%.2f'|format(negocio.ing) }}</strong></p>
+        <p class="mb-1">Gastos: <strong>${{ '%.2f'|format(negocio.gas) }}</strong></p>
+        <p class="mb-1">Balance: <strong>${{ '%.2f'|format(negocio.ing - negocio.gas) }}</strong></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mt-1">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">Gasto por categoría (Personal)</div>
+      <div class="card-body">
+        {% if cat_personal %}
+          <ul class="mb-0">
+          {% for name, total in cat_personal %}
+            <li>{{ name }} — ${{ '%.2f'|format(total or 0) }}</li>
+          {% endfor %}
+          </ul>
+        {% else %}
+          <em>Sin datos</em>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">Ingresos / Gastos por categoría (Negocio)</div>
+      <div class="card-body">
+        {% if cat_business %}
+          <canvas id="bizChart"></canvas>
+          <script>
+            const bizLabels = {{ cat_business|map(attribute=0)|list|tojson }};
+            const bizIn = {{ cat_business|map(attribute=1)|list|tojson }};
+            const bizOut = {{ cat_business|map(attribute=2)|list|tojson }};
+            new Chart(document.getElementById('bizChart'), {
+              type: 'bar',
+              data: {labels: bizLabels, datasets:[
+                {label:'Ingresos', data: bizIn},
+                {label:'Gastos', data: bizOut}
+              ]}
+            });
+          </script>
+        {% else %}
+          <em>Sin datos</em>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-header">Evolución últimos 12 meses (Gastos)</div>
+  <div class="card-body">
+    <canvas id="evoChart"></canvas>
+    <script>
+      const evoLabels = {{ series_labels|tojson }};
+      const evoP = {{ series_personal|tojson }};
+      const evoN = {{ series_negocio|tojson }};
+      new Chart(document.getElementById('evoChart'), {
+        type: 'line',
+        data: {labels: evoLabels, datasets:[
+          {label:'Personal', data:evoP},
+          {label:'Negocio', data:evoN}
+        ]}
+      });
+    </script>
+  </div>
+</div>
+
+<div class="row g-3 mt-2">
+  <div class="col-md-6">
+    <div class="alert alert-info">Proyecciones del período — Ingresos estimados: <strong>${{ '%.2f'|format(proj_in) }}</strong></div>
+  </div>
+  <div class="col-md-6">
+    <div class="alert alert-warning">Proyecciones del período — Gastos estimados: <strong>${{ '%.2f'|format(proj_out) }}</strong></div>
+  </div>
+</div>
+{% endblock %}

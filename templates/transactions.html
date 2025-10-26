@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h3>Movimientos</h3>
+  <a href="{{ url_for('export_csv') }}" class="btn btn-outline-secondary">Exportar</a>
+</div>
+
+<form class="row g-2 mb-3">
+  <div class="col-auto">
+    <select name="scope" class="form-select">
+      <option value="todos">Scope (todos)</option>
+      <option value="personal" {{ 'selected' if request.args.get('scope')=='personal' else '' }}>Personal</option>
+      <option value="negocio" {{ 'selected' if request.args.get('scope')=='negocio' else '' }}>Negocio</option>
+    </select>
+  </div>
+  <div class="col-auto">
+    <select name="account" class="form-select">
+      <option value="">Cuenta (todas)</option>
+      {% for a in accounts %}
+        <option value="{{ a.id }}" {{ 'selected' if request.args.get('account')==a.id|string else '' }}>{{ a.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <select name="category" class="form-select">
+      <option value="">Categoría (todas)</option>
+      {% for c in categories %}
+        <option value="{{ c.id }}" {{ 'selected' if request.args.get('category')==c.id|string else '' }}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <input type="date" name="start" value="{{ request.args.get('start','') }}" class="form-control" placeholder="Desde">
+  </div>
+  <div class="col-auto">
+    <input type="date" name="end" value="{{ request.args.get('end','') }}" class="form-control" placeholder="Hasta">
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-primary">Filtrar</button>
+  </div>
+</form>
+
+<div class="card">
+  <div class="card-header d-flex justify-content-between">
+    <span>Lista</span>
+    <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#newTx">Nuevo</button>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-striped mb-0">
+      <thead>
+        <tr>
+          <th>Fecha</th><th>Scope</th><th>Tipo</th><th>Monto</th><th>Cuenta</th><th>Categoría</th><th>Descripción</th><th>Adjunto</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in items %}
+        <tr>
+          <td>{{ t.date }}</td>
+          <td>{{ t.scope }}</td>
+          <td>{{ 'Ingreso' if t.direction=='in' else 'Gasto' }}</td>
+          <td>${{ '%.2f'|format(t.amount) }}</td>
+          <td>{{ t.account.name if t.account else '-' }}</td>
+          <td>{{ t.category.name if t.category else '-' }}</td>
+          <td>{{ t.description }}</td>
+          <td>{% if t.attachment %}<a href="{{ url_for('serve_upload', fname=t.attachment) }}" target="_blank">ver</a>{% else %}-{% endif %}</td>
+          <td class="text-nowrap">
+            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editTx{{t.id}}">Editar</button>
+            <form action="{{ url_for('transactions_delete', tid=t.id) }}" method="post" class="d-inline">
+              <button class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Borrar?')">Borrar</button>
+            </form>
+          </td>
+        </tr>
+        <div class="modal fade" id="editTx{{t.id}}" tabindex="-1">
+          <div class="modal-dialog">
+            <form class="modal-content" method="post" enctype="multipart/form-data" action="{{ url_for('transactions_edit', tid=t.id) }}">
+              <div class="modal-header"><h5 class="modal-title">Editar</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+              <div class="modal-body row g-2">
+                <div class="col-6"><input type="date" name="date" value="{{ t.date }}" class="form-control" required></div>
+                <div class="col-6"><select name="direction" class="form-select"><option value="out" {{ 'selected' if t.direction=='out' else '' }}>Gasto</option><option value="in" {{ 'selected' if t.direction=='in' else '' }}>Ingreso</option></select></div>
+                <div class="col-6"><input type="number" step="0.01" name="amount" value="{{ t.amount }}" class="form-control" required></div>
+                <div class="col-6"><input type="text" name="description" value="{{ t.description }}" class="form-control"></div>
+                <div class="col-6"><input type="text" name="account" value="{{ t.account.name if t.account else '' }}" class="form-control" placeholder="Cuenta"></div>
+                <div class="col-6"><input type="text" name="category" value="{{ t.category.name if t.category else '' }}" class="form-control" placeholder="Categoría"></div>
+                <div class="col-6"><select name="scope" class="form-select"><option value="personal" {{ 'selected' if t.scope=='personal' else '' }}>personal</option><option value="negocio" {{ 'selected' if t.scope=='negocio' else '' }}>negocio</option></select></div>
+                <div class="col-6"><input type="file" name="attachment" class="form-control"></div>
+              </div>
+              <div class="modal-footer"><button class="btn btn-primary">Guardar</button></div>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal fade" id="newTx" tabindex="-1">
+  <div class="modal-dialog">
+    <form class="modal-content" method="post" enctype="multipart/form-data" action="{{ url_for('transactions_new') }}">
+      <div class="modal-header"><h5 class="modal-title">Nuevo movimiento</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body row g-2">
+        <div class="col-6"><input type="date" name="date" class="form-control" required></div>
+        <div class="col-6"><select name="direction" class="form-select"><option value="out">Gasto</soption><option value="in">Ingreso</option></select></div>
+        <div class="col-6"><input type="number" step="0.01" name="amount" class="form-control" required></div>
+        <div class="col-6"><input type="text" name="description" class="form-control" placeholder="Descripción"></div>
+        <div class="col-6"><input type="text" name="account" class="form-control" placeholder="Cuenta (Banco)"></div>
+        <div class="col-6"><input type="text" name="category" class="form-control" placeholder="Categoría (otros)"></div>
+        <div class="col-6"><select name="scope" class="form-select"><option value="personal">personal</option><option value="negocio">negocio</option></select></div>
+        <div class="col-6"><input type="file" name="attachment" class="form-control"></div>
+      </div>
+      <div class="modal-footer"><button class="btn btn-success">Crear</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,41 @@
+
+{% extends "base.html" %}
+{% block content %}
+<h3>Importar (CSV o Excel)</h3>
+<p class="text-muted">Columnas mínimas: <code>date</code>, <code>description</code>, <code>amount</code>. Opcionales: <code>account</code>, <code>category</code>, <code>scope</code>, <code>direction</code>.</p>
+
+<form method="post" enctype="multipart/form-data" class="row g-3">
+  <div class="col-12">
+    <input type="file" name="file" class="form-control" required>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">Scope por defecto</label>
+    <select name="scope" class="form-select">
+      <option value="personal">Personal</option>
+      <option value="negocio">Negocio</option>
+    </select>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">Tipo por defecto</label>
+    <select name="type" class="form-select">
+      <option>Gasto</option><option>Ingreso</option>
+    </select>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">Cuenta por defecto</label>
+    <select name="account" class="form-select">
+      {% for a in accounts %}
+      <option>{{ a.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-12">
+    <button class="btn btn-primary">Importar</button>
+  </div>
+</form>
+
+<hr>
+<p class="small text-muted">
+Acepta CSV con <strong>coma</strong> o <strong>punto y coma</strong>. También Excel (requiere que el servidor tenga <code>pandas</code> y <code>openpyxl</code>).
+</p>
+{% endblock %}
