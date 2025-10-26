@@ -1,6 +1,7 @@
 
 import os
 from datetime import datetime, date, timedelta
+from collections import defaultdict
 from io import StringIO, BytesIO
 
 from flask import Flask, render_template, request, redirect, url_for, send_file, flash
@@ -17,6 +18,17 @@ app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 db = SQLAlchemy(app)
+
+
+@app.template_filter('peso')
+def peso_format(value):
+    try:
+        formatted = f"{float(value):,.2f}"
+    except (TypeError, ValueError):
+        return "$0.00"
+    # Convert US thousands/decimal separators to a more familiar Spanish style
+    formatted = formatted.replace(',', 'X').replace('.', ',').replace('X', '.')
+    return f"${formatted}"
 
 # --- Models ---
 class Account(db.Model):
@@ -110,6 +122,21 @@ def month_bounds(ym):
         end = date(today.year + (today.month==12), (today.month % 12) + 1, 1)
         return start, end
 
+
+def month_start(d):
+    return date(d.year, d.month, 1)
+
+
+def add_months(d, months):
+    base = d.year * 12 + (d.month - 1) + months
+    year = base // 12
+    month = base % 12 + 1
+    return date(year, month, 1)
+
+
+def month_label(d):
+    return f"{d.year:04d}-{d.month:02d}"
+
 # --- Dashboard ---
 @app.route('/')
 def dashboard():
@@ -126,6 +153,12 @@ def dashboard():
             month = f"{date.today().year:04d}-{date.today().month:02d}"
         start, end = month_bounds(month)
         title_suffix = month
+
+    end_for_series = to_date(end_str) if start_str and end_str else (end - timedelta(days=1))
+    end_for_series = month_start(end_for_series)
+    actual_start_month = add_months(end_for_series, -11)
+    actual_range_start = actual_start_month
+    actual_range_end = add_months(end_for_series, 1)
 
     # Totales por scope
     totals = (
@@ -148,42 +181,98 @@ def dashboard():
             negocio['ing'] = float(ing or 0)
             negocio['gas'] = float(gas or 0)
 
-    # Personal por categoría (lista simple)
-    cat_personal = (
+    # Personal por categoría (gastos)
+    cat_personal_expenses = (
         db.session.query(Category.name, func.sum(Transaction.amount))
         .join(Transaction.category)
-        .filter(Transaction.scope=='personal', Transaction.direction=='out',
-                Transaction.date>=start, Transaction.date<end)
+        .filter(Transaction.scope == 'personal', Transaction.direction == 'out',
+                Transaction.date >= start, Transaction.date < end)
         .group_by(Category.name).all()
     )
+    personal_expense_labels = []
+    personal_expense_values = []
+    for name, total in cat_personal_expenses:
+        personal_expense_labels.append(name)
+        personal_expense_values.append(float(total or 0))
+
+    # Personal ingresos vs gastos por categoría
+    cat_personal_mix = (
+        db.session.query(
+            Category.name,
+            func.sum(case((Transaction.direction == 'in', Transaction.amount), else_=0)).label('ing'),
+            func.sum(case((Transaction.direction == 'out', Transaction.amount), else_=0)).label('gas')
+        )
+        .join(Transaction.category)
+        .filter(Transaction.scope == 'personal', Transaction.date >= start, Transaction.date < end)
+        .group_by(Category.name).all()
+    )
+    personal_mix_labels = []
+    personal_mix_in = []
+    personal_mix_out = []
+    for name, ing, gas in cat_personal_mix:
+        personal_mix_labels.append(name)
+        personal_mix_in.append(float(ing or 0))
+        personal_mix_out.append(float(gas or 0))
 
     # Negocio ingresos vs gastos por categoría (para barras)
     cat_business = (
-        db.session.query(Category.name,
-                         func.sum(case((Transaction.direction=='in', Transaction.amount), else_=0)).label('ing'),
-                         func.sum(case((Transaction.direction=='out', Transaction.amount), else_=0)).label('gas'))
+        db.session.query(
+            Category.name,
+            func.sum(case((Transaction.direction == 'in', Transaction.amount), else_=0)).label('ing'),
+            func.sum(case((Transaction.direction == 'out', Transaction.amount), else_=0)).label('gas')
+        )
         .join(Transaction.category)
-        .filter(Transaction.scope=='negocio', Transaction.date>=start, Transaction.date<end)
+        .filter(Transaction.scope == 'negocio', Transaction.date >= start, Transaction.date < end)
         .group_by(Category.name).all()
     )
+    business_labels = []
+    business_in = []
+    business_out = []
+    for name, ing, gas in cat_business:
+        business_labels.append(name)
+        business_in.append(float(ing or 0))
+        business_out.append(float(gas or 0))
 
     # Últimos 12 meses (gastos personal / negocio)
-    series_labels, series_personal, series_negocio = [], [], []
-    today = date.today().replace(day=1)
-    for i in range(11, -1, -1):
-        ym = today - timedelta(days=30*i)
-        y, m = ym.year, ym.month
-        s = date(y, m, 1)
-        e = date(y + (m==12), (m % 12) + 1, 1)
-        series_labels.append(f"{y}-{m:02d}")
-        p = db.session.query(func.sum(Transaction.amount)).filter(
-            Transaction.scope=='personal', Transaction.direction=='out',
-            Transaction.date>=s, Transaction.date<e).scalar() or 0
-        n = db.session.query(func.sum(Transaction.amount)).filter(
-            Transaction.scope=='negocio', Transaction.direction=='out',
-            Transaction.date>=s, Transaction.date<e).scalar() or 0
-        series_personal.append(float(p))
-        series_negocio.append(float(n))
+    month_expr = func.strftime('%Y-%m', Transaction.date).label('month')
+    monthly_rows = (
+        db.session.query(month_expr, Transaction.scope, Transaction.direction,
+                         func.sum(Transaction.amount))
+        .filter(Transaction.date>=actual_range_start, Transaction.date<actual_range_end)
+        .group_by(month_expr, Transaction.scope, Transaction.direction)
+        .all()
+    )
+    monthly_totals = {(m, s, d): float(total or 0) for m, s, d, total in monthly_rows}
+
+    series_labels_actual = [month_label(add_months(actual_start_month, i)) for i in range(12)]
+    series_personal = [monthly_totals.get((label, 'personal', 'out'), 0.0) for label in series_labels_actual]
+    series_negocio = [monthly_totals.get((label, 'negocio', 'out'), 0.0) for label in series_labels_actual]
+
+    # Proyecciones futuras por mes
+    future_start = add_months(end_for_series, 1)
+    proj_month_expr = func.strftime('%Y-%m', Projection.date).label('month')
+    projection_rows = (
+        db.session.query(proj_month_expr, Projection.scope, Projection.direction,
+                         func.sum(Projection.amount))
+        .filter(Projection.date >= future_start)
+        .group_by(proj_month_expr, Projection.scope, Projection.direction)
+        .order_by(proj_month_expr)
+        .all()
+    )
+    projection_totals = defaultdict(float)
+    for month_val, scope_val, direction_val, total in projection_rows:
+        projection_totals[(month_val, scope_val, direction_val)] += float(total or 0)
+    future_labels = list(dict.fromkeys(row[0] for row in projection_rows))
+
+    series_labels = series_labels_actual + future_labels
+    personal_proj = [None] * len(series_labels_actual)
+    negocio_proj = [None] * len(series_labels_actual)
+    for label in future_labels:
+        personal_proj.append(projection_totals.get((label, 'personal', 'out'), 0.0))
+        negocio_proj.append(projection_totals.get((label, 'negocio', 'out'), 0.0))
+
+    series_personal_extended = series_personal + [None] * len(future_labels)
+    series_negocio_extended = series_negocio + [None] * len(future_labels)
 
     # Proyecciones del mes (simple sum)
     proj_in = db.session.query(func.sum(Projection.amount)).filter(
@@ -194,9 +283,22 @@ def dashboard():
     return render_template('dashboard.html',
         title_suffix=title_suffix,
         month=month or "",
+        start_value=start_str or "",
+        end_value=end_str or "",
         personal=personal, negocio=negocio,
-        cat_personal=cat_personal, cat_business=cat_business,
-        series_labels=series_labels, series_personal=series_personal, series_negocio=series_negocio,
+        personal_expense_labels=personal_expense_labels,
+        personal_expense_values=personal_expense_values,
+        personal_mix_labels=personal_mix_labels,
+        personal_mix_in=personal_mix_in,
+        personal_mix_out=personal_mix_out,
+        business_labels=business_labels,
+        business_in=business_in,
+        business_out=business_out,
+        series_labels=series_labels,
+        series_personal=series_personal_extended,
+        series_negocio=series_negocio_extended,
+        series_personal_proj=personal_proj,
+        series_negocio_proj=negocio_proj,
         proj_in=float(proj_in or 0), proj_out=float(proj_out or 0)
     )
 
@@ -370,7 +472,8 @@ def import_csv():
                 amt_raw = amt_raw.replace(',', '.')
             amount = float(amt_raw)
             scope = (r.get(col_scope) or scope_default).strip().lower()
-            direction = (r.get(col_dir) or ('out' if type_default.lower().startswith('g') or amount < 0 else 'in')).strip().lower()
+            direction_default = 'out' if type_default.lower().startswith('g') or amount < 0 else 'in'
+            direction = (r.get(col_dir) or direction_default).strip().lower()
             account_name = (r.get(col_account) or account_default).strip() or 'Banco'
             category_name = (r.get(col_category) or '').strip() or 'otros'
             amount = abs(amount)
