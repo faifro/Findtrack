@@ -330,6 +330,22 @@
         ? value.toLocaleString('es-AR', {style:'currency', currency:'ARS'})
         : 'Sin dato';
 
+      const evoAllValues = [...evoP, ...evoN, ...evoPProj, ...evoNProj]
+        .filter(value => typeof value === 'number' && !Number.isNaN(value));
+      const evoRange = (() => {
+        if (!evoAllValues.length) {
+          return {min: 0, max: 0};
+        }
+        const min = Math.min(...evoAllValues);
+        const max = Math.max(...evoAllValues);
+        if (min === max) {
+          const padding = Math.max(Math.abs(min) * 0.1, 1);
+          return {min: min - padding, max: max + padding};
+        }
+        const padding = (max - min) * 0.1 || 1;
+        return {min: min - padding, max: max + padding};
+      })();
+
       new Chart(document.getElementById('evoChart'), {
         type: 'line',
         data: {labels: evoLabels, datasets:[
@@ -385,7 +401,8 @@
           },
           scales:{
             y:{
-              beginAtZero:true,
+              suggestedMin: evoRange.min,
+              suggestedMax: evoRange.max,
               ticks:{
                 callback: value => currencyFormatter(value)
               }
