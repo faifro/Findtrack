@@ -42,24 +42,43 @@
 </div>
 
 <div class="row g-3 mt-1">
-  <div class="col-12">
+  <div class="col-lg-6">
     <div class="card h-100">
       <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <span>Detalle por categoría</span>
+        <span>Personal — detalle por categoría</span>
         <div class="d-flex align-items-center gap-2">
-          <label for="categoryChartMode" class="mb-0">Ver:</label>
-          <select id="categoryChartMode" class="form-select form-select-sm">
+          <label for="personalCategoryMode" class="mb-0">Ver:</label>
+          <select id="personalCategoryMode" class="form-select form-select-sm">
             <option value="personal_expenses">Gastos personales</option>
-            <option value="personal_mix">Ingresos vs Gastos (Personal)</option>
-            <option value="business_mix">Ingresos vs Gastos (Negocio)</option>
+            <option value="personal_mix">Ingresos vs Gastos</option>
           </select>
         </div>
       </div>
       <div class="card-body">
-        <div id="categoryEmptyState" class="text-center text-muted py-4" style="display:none;">
+        <div id="personalCategoryEmpty" class="text-center text-muted py-4" style="display:none;">
           Sin datos para la selección elegida
         </div>
-        <canvas id="categoryChart" style="min-height:260px;"></canvas>
+        <canvas id="personalCategoryChart" style="min-height:260px;"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span>Negocio — detalle por categoría</span>
+        <div class="d-flex align-items-center gap-2">
+          <label for="businessCategoryMode" class="mb-0">Ver:</label>
+          <select id="businessCategoryMode" class="form-select form-select-sm">
+            <option value="business_expenses">Gastos del negocio</option>
+            <option value="business_mix">Ingresos vs Gastos</option>
+          </select>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="businessCategoryEmpty" class="text-center text-muted py-4" style="display:none;">
+          Sin datos para la selección elegida
+        </div>
+        <canvas id="businessCategoryChart" style="min-height:260px;"></canvas>
       </div>
     </div>
   </div>
@@ -71,6 +90,8 @@
   const personalMixLabels = {{ personal_mix_labels|tojson }};
   const personalMixIn = {{ personal_mix_in|tojson }};
   const personalMixOut = {{ personal_mix_out|tojson }};
+  const businessExpenseLabels = {{ business_expense_labels|tojson }};
+  const businessExpenseData = {{ business_expense_values|tojson }};
   const bizLabels = {{ business_labels|tojson }};
   const bizIn = {{ business_in|tojson }};
   const bizOut = {{ business_out|tojson }};
@@ -82,100 +103,133 @@
   const categoryModeBuilders = {
     personal_expenses: () => ({
       available: personalExpenseLabels.length > 0,
-      type: 'bar',
-      data: {
-        labels: personalExpenseLabels,
-        datasets: [{
-          label: 'Gastos',
-          data: personalExpenseData,
-          backgroundColor: 'rgba(220,53,69,0.6)'
-        }]
-      },
-      options: {
-        plugins: {
-          legend: {display: false},
-          tooltip: {
-            callbacks: {
-              label: ctx => currencyLabel(ctx.parsed.y)
-            }
-          }
+      chart: {
+        type: 'bar',
+        data: {
+          labels: personalExpenseLabels,
+          datasets: [{
+            label: 'Gastos',
+            data: personalExpenseData,
+            backgroundColor: 'rgba(220,53,69,0.6)'
+          }]
         },
-        scales: {
-          y: {beginAtZero: true}
+        options: {
+          plugins: {
+            legend: {display: false},
+            tooltip: {
+              callbacks: {
+                label: ctx => currencyLabel(ctx.parsed.y)
+              }
+            }
+          },
+          scales: {
+            y: {beginAtZero: true}
+          }
         }
       }
     }),
     personal_mix: () => ({
       available: personalMixLabels.length > 0,
-      type: 'line',
-      data: {
-        labels: personalMixLabels,
-        datasets: [
-          {
-            label: 'Ingresos',
-            data: personalMixIn,
-            borderColor: '#0d6efd',
-            backgroundColor: 'rgba(13,110,253,0.2)',
-            tension: 0.35,
-            fill: false,
-            pointRadius: 4
-          },
-          {
-            label: 'Gastos',
-            data: personalMixOut,
-            borderColor: '#dc3545',
-            backgroundColor: 'rgba(220,53,69,0.2)',
-            tension: 0.35,
-            fill: false,
-            pointRadius: 4
-          }
-        ]
-      },
-      options: {
-        interaction: {mode: 'index', intersect: false},
-        scales: {y: {beginAtZero: true}},
-        plugins: {
-          tooltip: {
-            callbacks: {
-              label: ctx => `${ctx.dataset.label}: ${currencyLabel(ctx.parsed.y)}`
+      chart: {
+        type: 'line',
+        data: {
+          labels: personalMixLabels,
+          datasets: [
+            {
+              label: 'Ingresos',
+              data: personalMixIn,
+              borderColor: '#0d6efd',
+              backgroundColor: 'rgba(13,110,253,0.2)',
+              tension: 0.35,
+              fill: false,
+              pointRadius: 4
+            },
+            {
+              label: 'Gastos',
+              data: personalMixOut,
+              borderColor: '#dc3545',
+              backgroundColor: 'rgba(220,53,69,0.2)',
+              tension: 0.35,
+              fill: false,
+              pointRadius: 4
             }
+          ]
+        },
+        options: {
+          interaction: {mode: 'index', intersect: false},
+          scales: {y: {beginAtZero: true}},
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: ctx => `${ctx.dataset.label}: ${currencyLabel(ctx.parsed.y)}`
+              }
+            }
+          }
+        }
+      }
+    }),
+    business_expenses: () => ({
+      available: businessExpenseLabels.length > 0,
+      chart: {
+        type: 'bar',
+        data: {
+          labels: businessExpenseLabels,
+          datasets: [{
+            label: 'Gastos',
+            data: businessExpenseData,
+            backgroundColor: 'rgba(255,193,7,0.7)'
+          }]
+        },
+        options: {
+          plugins: {
+            legend: {display: false},
+            tooltip: {
+              callbacks: {
+                label: ctx => currencyLabel(ctx.parsed.y)
+              }
+            }
+          },
+          scales: {
+            y: {beginAtZero: true}
           }
         }
       }
     }),
     business_mix: () => ({
       available: bizLabels.length > 0,
-      type: 'line',
-      data: {
-        labels: bizLabels,
-        datasets: [
-          {
-            label: 'Ingresos',
-            data: bizIn,
-            borderColor: '#20c997',
-            backgroundColor: 'rgba(32,201,151,0.2)',
-            tension: 0.35,
-            fill: false,
-            pointRadius: 4
-          },
-          {
-            label: 'Gastos',
-            data: bizOut,
-            borderColor: '#dc3545',
-            backgroundColor: 'rgba(220,53,69,0.2)',
-            tension: 0.35,
-            fill: false,
-            pointRadius: 4
-          }
-        ]
-      },
-      options: {
-        interaction: {mode: 'index', intersect: false},
-        scales: {y: {beginAtZero: true}},
-        plugins: {
-          tooltip: {
-            callbacks: {
-              label: ctx => `${ctx.dataset.label}: ${currencyLabel(ctx.parsed.y)}`
+      chart: {
+        type: 'line',
+        data: {
+          labels: bizLabels,
+          datasets: [
+            {
+              label: 'Ingresos',
+              data: bizIn,
+              borderColor: '#198754',
+              backgroundColor: 'rgba(25,135,84,0.2)',
+              tension: 0.35,
+              fill: false,
+              pointRadius: 4
+            },
+            {
+              label: 'Gastos',
+              data: bizOut,
+              borderColor: '#dc3545',
+              backgroundColor: 'rgba(220,53,69,0.2)',
+              tension: 0.35,
+              fill: false,
+              pointRadius: 4
+            }
+          ]
+        },
+        options: {
+          interaction: {mode: 'index', intersect: false},
+          scales: {y: {beginAtZero: true}},
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: ctx => `${ctx.dataset.label}: ${currencyLabel(ctx.parsed.y)}`
+              }
             }
           }
         }
@@ -183,69 +237,86 @@
     })
   };
 
-  const categoryModeSelect = document.getElementById('categoryChartMode');
-  const categoryCanvas = document.getElementById('categoryChart');
-  const categoryEmptyState = document.getElementById('categoryEmptyState');
-  let categoryChart;
+  const createCategoryChartController = (selectId, canvasId, emptyId, preferredOrder) => {
+    const selectEl = document.getElementById(selectId);
+    const canvasEl = document.getElementById(canvasId);
+    const emptyEl = document.getElementById(emptyId);
+    let chartInstance = null;
 
-  const refreshOptionAvailability = () => {
-    Array.from(categoryModeSelect.options).forEach(option => {
-      const builder = categoryModeBuilders[option.value];
-      option.disabled = builder ? !builder().available : false;
-    });
-  };
+    const refreshOptions = () => {
+      Array.from(selectEl.options).forEach(option => {
+        const builder = categoryModeBuilders[option.value];
+        option.disabled = builder ? !builder().available : false;
+      });
+    };
 
-  const ensureDefaultMode = () => {
-    const preferredOrder = ['personal_expenses', 'personal_mix', 'business_mix'];
-    for (const mode of preferredOrder) {
+    const findDefault = () => {
+      for (const mode of preferredOrder) {
+        const builder = categoryModeBuilders[mode];
+        if (builder && builder().available) {
+          return mode;
+        }
+      }
+      return preferredOrder[0];
+    };
+
+    const renderMode = (mode) => {
       const builder = categoryModeBuilders[mode];
-      if (builder && builder().available) {
-        return mode;
+      if (!builder) { return; }
+      const {available, chart} = builder();
+      if (!available) {
+        if (chartInstance) {
+          chartInstance.destroy();
+          chartInstance = null;
+        }
+        canvasEl.style.display = 'none';
+        emptyEl.style.display = 'block';
+        return;
       }
+
+      emptyEl.style.display = 'none';
+      canvasEl.style.display = 'block';
+
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+      const ctx = canvasEl.getContext('2d');
+      chartInstance = new Chart(ctx, chart);
+    };
+
+    refreshOptions();
+    let initial = selectEl.value;
+    if (!categoryModeBuilders[initial] || !categoryModeBuilders[initial]().available) {
+      initial = findDefault();
+      selectEl.value = initial;
     }
-    return preferredOrder[0];
+    renderMode(initial);
+
+    selectEl.addEventListener('change', (evt) => {
+      renderMode(evt.target.value);
+    });
+
+    return {
+      refresh: () => {
+        refreshOptions();
+        const current = selectEl.value;
+        if (!categoryModeBuilders[current] || !categoryModeBuilders[current]().available) {
+          const fallback = findDefault();
+          selectEl.value = fallback;
+          renderMode(fallback);
+        } else {
+          renderMode(current);
+        }
+      }
+    };
   };
 
-  const updateCategoryChart = (mode) => {
-    const builder = categoryModeBuilders[mode];
-    if (!builder) { return; }
-    const config = builder();
-    if (!config.available) {
-      if (categoryChart) {
-        categoryChart.destroy();
-        categoryChart = null;
-      }
-      categoryCanvas.style.display = 'none';
-      categoryEmptyState.style.display = 'block';
-      return;
-    }
-
-    categoryEmptyState.style.display = 'none';
-    categoryCanvas.style.display = 'block';
-
-    if (categoryChart) {
-      categoryChart.destroy();
-    }
-    const ctx = categoryCanvas.getContext('2d');
-    categoryChart = new Chart(ctx, config);
-  };
-
-  const initialMode = categoryModeBuilders[categoryModeSelect.value]?.().available
-    ? categoryModeSelect.value
-    : ensureDefaultMode();
-  refreshOptionAvailability();
-  if (initialMode !== categoryModeSelect.value) {
-    categoryModeSelect.value = initialMode;
-  }
-  updateCategoryChart(initialMode);
-
-  categoryModeSelect.addEventListener('change', (event) => {
-    updateCategoryChart(event.target.value);
-  });
+  createCategoryChartController('personalCategoryMode', 'personalCategoryChart', 'personalCategoryEmpty', ['personal_expenses', 'personal_mix']);
+  createCategoryChartController('businessCategoryMode', 'businessCategoryChart', 'businessCategoryEmpty', ['business_expenses', 'business_mix']);
 </script>
 
 <div class="card mt-3">
-  <div class="card-header">Evolución últimos 12 meses (Gastos)</div>
+  <div class="card-header">Evolución últimos 12 meses (Balance neto)</div>
   <div class="card-body">
     <canvas id="evoChart"></canvas>
     <script>
@@ -254,42 +325,42 @@
       const evoN = {{ series_negocio|tojson }};
       const evoPProj = {{ series_personal_proj|tojson }};
       const evoNProj = {{ series_negocio_proj|tojson }};
-      const evoPProjNet = {{ series_personal_proj_net|tojson }};
-      const evoNProjNet = {{ series_negocio_proj_net|tojson }};
-      const projPositiveColor = '#6f42c1';
-      const projNegativeColor = '#d63384';
-      const projPositiveFill = 'rgba(111,66,193,0.18)';
-      const projNegativeFill = 'rgba(214,51,132,0.18)';
+
+      const currencyFormatter = value => typeof value === 'number'
+        ? value.toLocaleString('es-AR', {style:'currency', currency:'ARS'})
+        : 'Sin dato';
+
       new Chart(document.getElementById('evoChart'), {
         type: 'line',
         data: {labels: evoLabels, datasets:[
-          {label:'Personal', data:evoP, borderColor:'#0d6efd', backgroundColor:'rgba(13,110,253,0.15)', spanGaps:true},
-          {label:'Negocio', data:evoN, borderColor:'#198754', backgroundColor:'rgba(25,135,84,0.15)', spanGaps:true},
+          {
+            label:'Personal',
+            data:evoP,
+            borderColor:'#0d6efd',
+            backgroundColor:'rgba(13,110,253,0.15)',
+            spanGaps:true,
+            tension:0.35,
+            fill:false
+          },
+          {
+            label:'Negocio',
+            data:evoN,
+            borderColor:'#198754',
+            backgroundColor:'rgba(25,135,84,0.15)',
+            spanGaps:true,
+            tension:0.35,
+            fill:false
+          },
           {
             label:'Personal (Proyección)',
             data:evoPProj,
             fill:false,
             spanGaps:true,
             tension:0.35,
-            borderWidth:2,
-            borderColor: ctx => {
-              const idx = ctx.dataIndex;
-              const balance = evoPProjNet[idx];
-              if (balance === null || typeof balance === 'undefined') { return projPositiveColor; }
-              return balance >= 0 ? projPositiveColor : projNegativeColor;
-            },
-            pointBackgroundColor: ctx => {
-              const idx = ctx.dataIndex;
-              const balance = evoPProjNet[idx];
-              if (balance === null || typeof balance === 'undefined') { return 'rgba(0,0,0,0)'; }
-              return balance >= 0 ? projPositiveColor : projNegativeColor;
-            },
-            backgroundColor: ctx => {
-              const idx = ctx.dataIndex;
-              const balance = evoPProjNet[idx];
-              if (balance === null || typeof balance === 'undefined') { return projPositiveFill; }
-              return balance >= 0 ? projPositiveFill : projNegativeFill;
-            }
+            borderColor:'#0d6efd',
+            borderDash:[6,4],
+            pointRadius:4,
+            pointBackgroundColor:'#0d6efd'
           },
           {
             label:'Negocio (Proyección)',
@@ -297,36 +368,30 @@
             fill:false,
             spanGaps:true,
             tension:0.35,
-            borderWidth:2,
-            borderColor: ctx => {
-              const idx = ctx.dataIndex;
-              const balance = evoNProjNet[idx];
-              if (balance === null || typeof balance === 'undefined') { return projPositiveColor; }
-              return balance >= 0 ? projPositiveColor : projNegativeColor;
-            },
-            pointBackgroundColor: ctx => {
-              const idx = ctx.dataIndex;
-              const balance = evoNProjNet[idx];
-              if (balance === null || typeof balance === 'undefined') { return 'rgba(0,0,0,0)'; }
-              return balance >= 0 ? projPositiveColor : projNegativeColor;
-            },
-            backgroundColor: ctx => {
-              const idx = ctx.dataIndex;
-              const balance = evoNProjNet[idx];
-              if (balance === null || typeof balance === 'undefined') { return projPositiveFill; }
-              return balance >= 0 ? projPositiveFill : projNegativeFill;
-            }
+            borderColor:'#198754',
+            borderDash:[6,4],
+            pointRadius:4,
+            pointBackgroundColor:'#198754'
           }
         ]},
-        options: {interaction:{mode:'index', intersect:false}, plugins:{tooltip:{callbacks:{
-          label: function(ctx){
-            const label = ctx.dataset.label || '';
-            const value = typeof ctx.parsed.y === 'number'
-              ? ctx.parsed.y.toLocaleString('es-AR', {style:'currency', currency:'ARS'})
-              : 'Sin dato';
-            return `${label}: ${value}`;
+        options: {
+          interaction:{mode:'index', intersect:false},
+          plugins:{
+            tooltip:{
+              callbacks:{
+                label: ctx => `${ctx.dataset.label || ''}: ${currencyFormatter(ctx.parsed.y)}`
+              }
+            }
+          },
+          scales:{
+            y:{
+              beginAtZero:false,
+              ticks:{
+                callback: value => currencyFormatter(value)
+              }
+            }
           }
-        }}}, scales:{y:{beginAtZero:true}}}
+        }
       });
     </script>
   </div>

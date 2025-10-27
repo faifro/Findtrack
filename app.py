@@ -195,6 +195,20 @@ def dashboard():
         personal_expense_labels.append(name)
         personal_expense_values.append(float(total or 0))
 
+    # Negocio por categoría (gastos)
+    cat_business_expenses = (
+        db.session.query(Category.name, func.sum(Transaction.amount))
+        .join(Transaction.category)
+        .filter(Transaction.scope == 'negocio', Transaction.direction == 'out',
+                Transaction.date >= start, Transaction.date < end)
+        .group_by(Category.name).all()
+    )
+    business_expense_labels = []
+    business_expense_values = []
+    for name, total in cat_business_expenses:
+        business_expense_labels.append(name)
+        business_expense_values.append(float(total or 0))
+
     # Personal ingresos vs gastos por categoría
     cat_personal_mix = (
         db.session.query(
@@ -247,8 +261,13 @@ def dashboard():
     monthly_totals = {(m, s, d): float(total or 0) for m, s, d, total in monthly_rows}
 
     series_labels_actual = [month_label(add_months(actual_start_month, i)) for i in range(12)]
-    series_personal = [monthly_totals.get((label, 'personal', 'out'), 0.0) for label in series_labels_actual]
-    series_negocio = [monthly_totals.get((label, 'negocio', 'out'), 0.0) for label in series_labels_actual]
+    personal_monthly_in = [monthly_totals.get((label, 'personal', 'in'), 0.0) for label in series_labels_actual]
+    personal_monthly_out = [monthly_totals.get((label, 'personal', 'out'), 0.0) for label in series_labels_actual]
+    negocio_monthly_in = [monthly_totals.get((label, 'negocio', 'in'), 0.0) for label in series_labels_actual]
+    negocio_monthly_out = [monthly_totals.get((label, 'negocio', 'out'), 0.0) for label in series_labels_actual]
+
+    series_personal = [ing - gas for ing, gas in zip(personal_monthly_in, personal_monthly_out)]
+    series_negocio = [ing - gas for ing, gas in zip(negocio_monthly_in, negocio_monthly_out)]
 
     # Proyecciones futuras por mes
     future_start = add_months(end_for_series, 1)
@@ -269,17 +288,13 @@ def dashboard():
     series_labels = series_labels_actual + future_labels
     personal_proj = [None] * len(series_labels_actual)
     negocio_proj = [None] * len(series_labels_actual)
-    personal_proj_net = [None] * len(series_labels_actual)
-    negocio_proj_net = [None] * len(series_labels_actual)
     for label in future_labels:
         personal_out = projection_totals.get((label, 'personal', 'out'), 0.0)
         negocio_out = projection_totals.get((label, 'negocio', 'out'), 0.0)
         personal_in = projection_totals.get((label, 'personal', 'in'), 0.0)
         negocio_in = projection_totals.get((label, 'negocio', 'in'), 0.0)
-        personal_proj.append(personal_out)
-        negocio_proj.append(negocio_out)
-        personal_proj_net.append(personal_in - personal_out)
-        negocio_proj_net.append(negocio_in - negocio_out)
+        personal_proj.append(personal_in - personal_out)
+        negocio_proj.append(negocio_in - negocio_out)
 
     series_personal_extended = series_personal + [None] * len(future_labels)
     series_negocio_extended = series_negocio + [None] * len(future_labels)
@@ -301,6 +316,8 @@ def dashboard():
         personal_mix_labels=personal_mix_labels,
         personal_mix_in=personal_mix_in,
         personal_mix_out=personal_mix_out,
+        business_expense_labels=business_expense_labels,
+        business_expense_values=business_expense_values,
         business_labels=business_labels,
         business_in=business_in,
         business_out=business_out,
@@ -309,8 +326,6 @@ def dashboard():
         series_negocio=series_negocio_extended,
         series_personal_proj=personal_proj,
         series_negocio_proj=negocio_proj,
-        series_personal_proj_net=personal_proj_net,
-        series_negocio_proj_net=negocio_proj_net,
         proj_in=float(proj_in or 0), proj_out=float(proj_out or 0)
     )
 
