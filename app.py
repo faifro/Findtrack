@@ -281,6 +281,17 @@ def dashboard():
     series_personal = [ing - gas for ing, gas in zip(personal_monthly_in, personal_monthly_out)]
     series_negocio = [ing - gas for ing, gas in zip(negocio_monthly_in, negocio_monthly_out)]
 
+    def cumulative(values):
+        total = 0.0
+        result = []
+        for value in values:
+            total += value
+            result.append(total)
+        return result
+
+    series_personal_cumulative = cumulative(series_personal)
+    series_negocio_cumulative = cumulative(series_negocio)
+
     # Proyecciones futuras por mes
     future_start = add_months(end_for_series, 1)
     proj_month_expr = func.strftime('%Y-%m', Projection.date).label('month')
@@ -295,21 +306,44 @@ def dashboard():
     projection_totals = defaultdict(float)
     for month_val, scope_val, direction_val, total in projection_rows:
         projection_totals[(month_val, scope_val, direction_val)] += float(total or 0)
-    future_labels = list(dict.fromkeys(row[0] for row in projection_rows))
+
+    seen_future = set()
+    future_labels = []
+    for month_val, *_ in projection_rows:
+        if month_val not in seen_future:
+            seen_future.add(month_val)
+            future_labels.append(month_val)
+
+    future_personal_nets = {
+        label: projection_totals.get((label, 'personal', 'in'), 0.0) -
+               projection_totals.get((label, 'personal', 'out'), 0.0)
+        for label in future_labels
+    }
+    future_negocio_nets = {
+        label: projection_totals.get((label, 'negocio', 'in'), 0.0) -
+               projection_totals.get((label, 'negocio', 'out'), 0.0)
+        for label in future_labels
+    }
 
     series_labels = series_labels_actual + future_labels
+
+    series_personal_extended = series_personal_cumulative + [None] * len(future_labels)
+    series_negocio_extended = series_negocio_cumulative + [None] * len(future_labels)
+
     personal_proj = [None] * len(series_labels_actual)
     negocio_proj = [None] * len(series_labels_actual)
-    for label in future_labels:
-        personal_out = projection_totals.get((label, 'personal', 'out'), 0.0)
-        negocio_out = projection_totals.get((label, 'negocio', 'out'), 0.0)
-        personal_in = projection_totals.get((label, 'personal', 'in'), 0.0)
-        negocio_in = projection_totals.get((label, 'negocio', 'in'), 0.0)
-        personal_proj.append(personal_in - personal_out)
-        negocio_proj.append(negocio_in - negocio_out)
+    running_personal = series_personal_cumulative[-1] if series_personal_cumulative else 0.0
+    running_negocio = series_negocio_cumulative[-1] if series_negocio_cumulative else 0.0
 
-    series_personal_extended = series_personal + [None] * len(future_labels)
-    series_negocio_extended = series_negocio + [None] * len(future_labels)
+    if future_labels and series_labels_actual:
+        personal_proj[-1] = running_personal
+        negocio_proj[-1] = running_negocio
+
+    for label in future_labels:
+        running_personal += future_personal_nets.get(label, 0.0)
+        running_negocio += future_negocio_nets.get(label, 0.0)
+        personal_proj.append(running_personal)
+        negocio_proj.append(running_negocio)
 
     # Proyecciones del mes (simple sum)
     proj_in = db.session.query(func.sum(Projection.amount)).filter(

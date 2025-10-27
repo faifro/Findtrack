@@ -316,7 +316,7 @@
 </script>
 
 <div class="card mt-3">
-  <div class="card-header">Evolución últimos 12 meses (Balance neto)</div>
+  <div class="card-header">Evolución últimos 12 meses (Balance neto acumulado)</div>
   <div class="card-body">
     <canvas id="evoChart"></canvas>
     <script>
@@ -385,7 +385,7 @@
           },
           scales:{
             y:{
-              beginAtZero:false,
+              beginAtZero:true,
               ticks:{
                 callback: value => currencyFormatter(value)
               }
