@@ -157,6 +157,10 @@ def dashboard():
     end_for_series = end - timedelta(days=1)
     end_for_series = month_start(end_for_series)
     actual_start_month = add_months(end_for_series, -11)
+    if start_str:
+        start_month = month_start(start)
+        if start_month > actual_start_month:
+            actual_start_month = start_month
     actual_range_start = actual_start_month
     actual_range_end = add_months(end_for_series, 1)
 
@@ -250,17 +254,25 @@ def dashboard():
     # Últimos 12 meses (gastos personal / negocio)
     month_expr = func.strftime('%Y-%m', Transaction.date).label('month')
     filter_end_series = end if start_str and end_str else actual_range_end
+    series_filter_start = start if start_str else actual_range_start
+
+    series_end_month = month_start((filter_end_series - timedelta(days=1))) if filter_end_series else end_for_series
+    series_months = []
+    cursor = actual_start_month
+    while cursor <= series_end_month:
+        series_months.append(cursor)
+        cursor = add_months(cursor, 1)
 
     monthly_rows = (
         db.session.query(month_expr, Transaction.scope, Transaction.direction,
                          func.sum(Transaction.amount))
-        .filter(Transaction.date>=actual_range_start, Transaction.date<filter_end_series)
+        .filter(Transaction.date>=series_filter_start, Transaction.date<filter_end_series)
         .group_by(month_expr, Transaction.scope, Transaction.direction)
         .all()
     )
     monthly_totals = {(m, s, d): float(total or 0) for m, s, d, total in monthly_rows}
 
-    series_labels_actual = [month_label(add_months(actual_start_month, i)) for i in range(12)]
+    series_labels_actual = [month_label(m) for m in series_months]
     personal_monthly_in = [monthly_totals.get((label, 'personal', 'in'), 0.0) for label in series_labels_actual]
     personal_monthly_out = [monthly_totals.get((label, 'personal', 'out'), 0.0) for label in series_labels_actual]
     negocio_monthly_in = [monthly_totals.get((label, 'negocio', 'in'), 0.0) for label in series_labels_actual]
